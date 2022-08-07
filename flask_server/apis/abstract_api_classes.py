@@ -15,7 +15,7 @@ class abstract_api():
         pass
 
     @abstractmethod
-    def search(self, title=None, genre=None, status=None, year=None, tags=[]):
+    def search(self, title=None):
         pass
 
 

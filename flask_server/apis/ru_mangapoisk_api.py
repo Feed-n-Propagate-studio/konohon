@@ -2,7 +2,9 @@ import re
 import requests
 
 from bs4 import BeautifulSoup
+from abstract_api_classes import meta_manga
 from abstract_api_classes import abstract_api
+from abstract_api_classes import release_status
 
 
 class mangapoisk_api(abstract_api):
@@ -10,23 +12,31 @@ class mangapoisk_api(abstract_api):
     def __init__(self) -> None:
         super(mangapoisk_api, self).__init__()
         self.domen_name = 'https://mangapoisk.ru'
-        
+        self.domen_mirrors = []
+
         self.regex_genres = re.compile(r'class="card-genres-item">([А-я0-9]+)<')
         self.regex_chapters = re.compile(r'<span>Глава: (\d+)<\/span>')
         self.regex_image_not_valid = re.compile(r'^data:image')
         self.regex_rating = re.compile(r'<span class="fa fa-star rating-star">\s+::before\s+\" (\d\.\d+)')
 
-    # Private
+    # Internal
 
-    '''
-    Returns dict of all manga available on given page
-    '''
-    def __get_books_from_page(self, page=None):
-        if page == None:
-            return {}
+    def _get_html_code(self, url=None):
+        try:
+            html_page = requests.get(url)
+        except Exception as ex:
+            print(ex)
+        
+        if html_page.status_code == 200:
+            return html_page.text
+        else:
+            print("Something went wrong, we get response " + str(html_page.status_code))
 
-        html_data = BeautifulSoup(page, "html.parser")
-        html_books = html_data.find_all("article") # Finds all the manga available on current page 
+        return None
+
+    def _get_books_from_page(self, page=None):
+        html_data = BeautifulSoup(page, 'html.parser')
+        html_books = html_data.find_all('article')
         catalog_dict = {}
 
         book_counter = 0
@@ -52,54 +62,32 @@ class mangapoisk_api(abstract_api):
             else:
                 manga_rating = None
 
-            catalog_dict['manga_' + str(book_counter)] = {'title': manga_title, 'genres': manga_genres, 'chapters': manga_chapters, 
-                                                        'year': manga_year, 'rating': manga_rating, 'description': manga_description, 
-                                                        'url': manga_url, 'cover': manga_cover}
+            meta_book = meta_manga(manga_year, None, manga_chapters, manga_rating, manga_genres, manga_url, manga_title, 
+                                    manga_description, manga_cover, None)
+            catalog_dict['manga_' + str(book_counter)] = str(meta_book)
             book_counter += 1
 
         return catalog_dict
 
-    def __get_html_code(self, url=None):
-        if url == None:
-            return url
-        try:
-            html_page = requests.get(url)
-        except Exception as ex:
-            print(ex)
-        
-        if html_page.status_code == 200:
-            return html_page.text
-        else:
-            print("Something went wrong, we get response " + str(html_page.status_code))
-
-        return None
-
     # Public
 
-    '''
-    Returns dict of manga available on catalog page
-    By default returns first page of the catalog
-    '''
     def get_catalog(self, page=1):
-        catalog_dict = {}
-        catalog_page = self.__get_html_code('https://mangapoisk.ru/manga?page=' + str(page))
+        catalog_page = self._get_html_code(self.domen_name + '/manga?page=' + str(page))
 
         if catalog_page:
-            return self.__get_books_from_page(catalog_page)
+            return self._get_books_from_page(catalog_page)
         
         return None
 
-    '''
-    Returns dict of manga satisfying the request title
-    Returns empty dict if nothing found
-    '''
+    def get_manga(self, url:str = None):
+        pass
+
     def search(self, title=None):
-        if title == None:
-            return None
         search_string = title.replace(' ', '+')
         search_request = self.domen_name + '/search?q=' + search_string
-        return self.__get_books_from_page(self.__get_html_code(search_request))
+        return self._get_books_from_page(self._get_html_code(search_request))
+
 
 fds = mangapoisk_api()
-page = fds.search('Истории монстров')
+page = fds.get_catalog()
 print(page)
